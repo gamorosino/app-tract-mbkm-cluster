@@ -7,7 +7,8 @@ CONTAINER_IMAGE="${BL_CONTAINER_IMAGE:-docker://gamorosino/tract_align:v1.0}"
 
 if command -v singularity >/dev/null 2>&1; then
     echo "[main] running with singularity: ${CONTAINER_IMAGE}"
-    singularity exec -e "${CONTAINER_IMAGE}" python3 main.py
+    singularity exec -e "${CONTAINER_IMAGE}" micromamba run -n tract_align  python3 main.py
+
 else
     echo "[main] singularity not found; running main.py directly"
     python3 main.py
