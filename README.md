@@ -24,21 +24,23 @@ This approach follows the dissimilarity projection framework introduced by Emanu
 * Built on tools from DIPY (Garyfallidis et al., 2014)
 
 ---
+## Author
 
+Gabriele amorosino (g.amorosino@gmail.com)
+
+---
 ## Method Summary
 
 ### 1. Streamline Embedding
 
-Each streamline ( s_i ) is embedded as:
-
-[
+Each streamline ( $s_i$ ) is embedded as:
+```math
 \phi(s_i) = [d(s_i, p_1), \dots, d(s_i, p_m)]
-]
-
+```
 where:
 
-* ( p_j ) are prototype streamlines
-* ( d(\cdot,\cdot) ) is an orientation-invariant distance (MDF)
+* ( $p_j$ ) are prototype streamlines
+* ( $d(\cdot,\cdot)$ ) is an orientation-invariant distance (MDF)
 
 This formulation follows the dissimilarity projection framework described in:
 
@@ -147,12 +149,6 @@ singularity exec -e docker://gamorosino/tract_align:latest \
 
 ---
 
-## Author
-
-Gamorosino
-
----
-
 ## License
 
-Specify your license (e.g., MIT, BSD-3-Clause)
+license (BSD-3-Clause)
