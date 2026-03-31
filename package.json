@@ -1,0 +1,7 @@
+{
+  "name": "app-tract-mbkm-cluster",
+  "desc": "Orientation-invariant streamline dissimilarity embedding, MiniBatch K-Means clustering, and medoid extraction.",
+  "author": "gamorosino",
+  "license": "BSD-3-Clause",
+  "readme": "README.md"
+}
