@@ -3,6 +3,13 @@ set -euo pipefail
 
 mkdir -p out_medoids out_labels out_qc
 
+###############################
+#export OMP_NUM_THREADS=1
+#export MKL_NUM_THREADS=1
+#export OPENBLAS_NUM_THREADS=1
+#export NUMEXPR_NUM_THREADS=1
+###############################
+
 CONTAINER_IMAGE="${BL_CONTAINER_IMAGE:-docker://gamorosino/tract_align:v1.0}"
 
 if command -v singularity >/dev/null 2>&1; then
