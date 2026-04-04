@@ -73,7 +73,7 @@ def fit_mbkm(embedding, n_clusters, batch_size=1000, n_init=10,
     t0 = time.time()
     km.fit(np.nan_to_num(embedding))
     if verbose:
-        print(f"[cluster80k] MBKM fit in {time.time()-t0:.2f}s")
+        print(f"[clustering] MBKM fit in {time.time()-t0:.2f}s")
     return km
 
 
@@ -130,12 +130,22 @@ def cluster_size_stats(labels, n_clusters):
     }
 
 
+from multiprocessing import cpu_count
+
 def run_from_config(cfg):
     track_path = cfg["track"]
     reference_path = cfg.get("reference")
+
+    # ---- FIX n_jobs HERE ----
     n_jobs = int(cfg.get("n_jobs", -1))
-    if n_jobs == 0:
+
+    if n_jobs == -1:
+        n_jobs = cpu_count()
+
+    if n_jobs < 1:
         n_jobs = 1
+
+    # --------------------------------
 
     out_medoids = cfg.get("out_medoids", "out_medoids")
     out_labels = cfg.get("out_labels", "out_labels")
@@ -153,7 +163,7 @@ def run_from_config(cfg):
     n_clusters_requested = int(cfg.get("n_clusters", 1))
     n_clusters_final = max(1, min(n_clusters_requested, n_streamlines))
     if n_clusters_final != n_clusters_requested:
-        print(f"[cluster80k] capping n_clusters from {n_clusters_requested} to {n_clusters_final}")
+        print(f"[clustering] capping n_clusters from {n_clusters_requested} to {n_clusters_final}")
 
     reference = nib.load(reference_path) if reference_path else header
 
