@@ -32,11 +32,18 @@ def _resolve_distance(distance_name: str):
     raise ValueError(f"Unsupported distance: {distance_name}")
 
 
-def _resample_streamlines(streamlines, nb_points: int):
-    if nb_points is None:
-        return np.asarray(streamlines, dtype=object)
-    return np.asarray(set_number_of_points(streamlines, nb_points), dtype=object)
 
+
+def _resample_streamlines(streamlines, nb_points: int):
+    seq = nib.streamlines.ArraySequence()
+    for sl in streamlines:
+        seq.append(np.asarray(sl, dtype=np.float32))
+
+    if nb_points is None:
+        return np.array([np.asarray(sl, dtype=np.float32) for sl in seq], dtype=object)
+
+    resampled = set_number_of_points(seq, nb_points)
+    return np.array([np.asarray(sl, dtype=np.float32) for sl in resampled], dtype=object)
 
 def compute_embedding(streamlines, distance_name="mdf", num_prototypes=64,
                       prototype_policy="sff", size_limit=5_000_000,
