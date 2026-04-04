@@ -2139,35 +2139,99 @@ def load_tck_parallel(path, n_jobs=-1, apply_affine=True, verbose=False):
 # PART 3 — Unified entry point
 # ============================================================
 
-
-
-def load_any_tractogram(path, n_jobs=-1):
+def load_tck_serial(path, apply_affine=True, verbose=False):
     """
-    Hybrid tractogram loader:
-    
-    - If n_jobs > 1 → use fast parallel loader (user provided)
-    - If n_jobs <= 1 → use safe Dipy loader ensuring a StatefulTractogram
+    Serial TCK loader using the same logic as load_tck_parallel(),
+    but without multiprocessing.
 
-    Returns:
-        StatefulTractogram
+    Returns
+    -------
+    streamlines : list of (N_i, 3) float32 arrays
+    affine : (4, 4) float32 array
     """
+    header, header_end = _parse_tck_header(path)
+
+    # Recover affine from TCK header if present
+    if "transform" in header:
+        mat = np.fromstring(header["transform"], sep=" ")
+        if mat.size == 16:
+            affine = mat.reshape(4, 4).astype(np.float32)
+        else:
+            affine = np.eye(4, dtype=np.float32)
+    else:
+        affine = np.eye(4, dtype=np.float32)
+
+    f = open(path, "rb")
+    mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+
+    try:
+        raw = np.ndarray(
+            shape=((len(mm) - header_end) // 4,),
+            dtype=np.float32,
+            buffer=mm,
+            offset=header_end,
+        )
+
+        # Safe trim to multiple of 3
+        n = raw.shape[0] - (raw.shape[0] % 3)
+        points = raw[:n].reshape(-1, 3)
+
+        nan_idx = _find_nan_blocks(points)
+
+        starts = []
+        ends = []
+        prev = 0
+        for idx in nan_idx:
+            if idx > prev:
+                starts.append(prev)
+                ends.append(idx)
+            prev = idx + 1
+
+        starts = np.array(starts, dtype=np.int64)
+        ends = np.array(ends, dtype=np.int64)
+
+        if verbose:
+            print(f"[load_tck_serial] streamlines found: {len(starts):,}")
+
+        R = affine[:3, :3]
+        t = affine[:3, 3]
+
+        streamlines = []
+        for s, e in zip(starts, ends):
+            sl = points[s:e].copy()
+            if apply_affine:
+                sl = sl @ R.T + t
+            streamlines.append(sl)
+
+    finally:
+        mm.close()
+        f.close()
+
+    return streamlines, affine
+
+def load_any_tractogram(path, n_jobs=1, reference_img=None):
     ext = os.path.splitext(path)[1].lower()
 
-    # Use DIpy loader for safety when job count = 1
-    if n_jobs == 1:
-        return load_tractogram(path, reference="same", to_space=Space.RASMM)
+    if n_jobs is None:
+        n_jobs = 1
 
-    # Parallel loaders return tuples → only use them when user explicitly requests parallelism
+    if n_jobs == 1:
+        if ext == ".trk":
+            return load_tractogram(path, reference="same", to_space=Space.RASMM)
+        elif ext == ".tck":
+            return load_tck_serial(path, apply_affine=True)
+        else:
+            raise ValueError(f"Unsupported extension: {ext}")
+
     if n_jobs > 1:
         if ext == ".tck":
-            return load_tck_parallel(path, n_jobs=n_jobs)
+            return load_tck_parallel(path, n_jobs=n_jobs, apply_affine=True)
         elif ext == ".trk":
             return load_streamlines_parallel(path, n_jobs=n_jobs)
         else:
             raise ValueError(f"Unsupported extension: {ext}")
 
-    # Fallback (should never happen)
-    return load_tractogram(path, reference="same", to_space=Space.RASMM)
+    raise ValueError(f"Invalid n_jobs value: {n_jobs}")
 
 
 
