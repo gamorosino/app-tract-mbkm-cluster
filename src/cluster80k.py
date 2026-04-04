@@ -33,7 +33,6 @@ def _resolve_distance(distance_name: str):
 
 
 
-
 def _resample_streamlines(streamlines, nb_points: int):
     seq = nib.streamlines.ArraySequence()
     for sl in streamlines:
@@ -134,6 +133,10 @@ def cluster_size_stats(labels, n_clusters):
 def run_from_config(cfg):
     track_path = cfg["track"]
     reference_path = cfg.get("reference")
+    n_jobs = int(cfg.get("n_jobs", -1))
+    if n_jobs == 0:
+        n_jobs = 1
+
     out_medoids = cfg.get("out_medoids", "out_medoids")
     out_labels = cfg.get("out_labels", "out_labels")
     out_qc = cfg.get("out_qc", "out_qc")
@@ -143,7 +146,7 @@ def run_from_config(cfg):
 
     streamlines, affine, header = loadTractogram(
         track_path,
-        n_jobs=cfg.get("n_jobs"),
+        n_jobs=n_jobs,
         reference_img=reference_path,
     )
     n_streamlines = len(streamlines)
@@ -169,7 +172,7 @@ def run_from_config(cfg):
         num_prototypes=n_prototypes,
         prototype_policy=cfg.get("prototype_policy", "sff"),
         size_limit=int(cfg.get("size_limit", 5_000_000)),
-        n_jobs=cfg.get("n_jobs"),
+        n_jobs=n_jobs,
         verbose=bool(cfg.get("verbose", False)),
     )
     embed_sec = round(time.time() - t0, 2)
