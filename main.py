@@ -3,7 +3,7 @@ import json
 import time
 from pathlib import Path
 
-from src.cluster80k import run_from_config
+from src.mbkm_clustering import run_from_config
 from src.io_utils import write_product_json
 
 
