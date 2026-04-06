@@ -14,7 +14,7 @@ from dipy.tracking.distances import bundles_distances_mam
 from dipy.segment.bundles import bundles_distances_mdf
 from dipy.tracking.streamline import set_number_of_points
 
-from .tracklib import loadTractogram
+from .tracklib import loadTractogram, trk2tck
 from .dissimilarity_common import compute_dissimilarity
 from .io_utils import ensure_dir, write_json
 
@@ -99,6 +99,7 @@ def save_merged_medoids(tract, medoids, reference, out_path):
     sft = StatefulTractogram(sls, reference, Space.RASMM)
     sft.remove_invalid_streamlines()
     save_tractogram(sft, out_path, bbox_valid_check=False)
+    trk2tck([out_path])
 
 
 def save_individual_medoids(tract, medoids, reference, out_dir):
