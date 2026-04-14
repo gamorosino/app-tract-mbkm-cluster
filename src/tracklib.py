@@ -2065,16 +2065,24 @@ def _load_chunk_tck(args):
 # ---------- step 4: MAIN TCK PARALLEL LOADER ----------
 def load_tck_parallel(path, n_jobs=-1, apply_affine=True, verbose=False):
 
+    def log(msg):
+        if verbose:
+            print(f"[tracklib:tck] {msg}", flush=True)
+
+    log(f"loading TCK: {path}")
+
     header, header_end = _parse_tck_header(path)
 
     # affine
     if "transform" in header:
         mat = np.fromstring(header["transform"], sep=" ").reshape(4, 4)
         affine = mat.astype(np.float32)
+        log("found transform in header")
     else:
         affine = np.eye(4, dtype=np.float32)
+        log("no transform found, using identity affine")
 
-    # main process mmap to detect NaNs only
+    # mmap
     f = open(path, "rb")
     mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
 
@@ -2087,12 +2095,14 @@ def load_tck_parallel(path, n_jobs=-1, apply_affine=True, verbose=False):
     )
     points = raw.reshape(-1, 3)
 
+    log(f"loaded raw points: {points.shape[0]:,}")
+
     # NaN delimiters
     nan_idx = _find_nan_blocks(points)
+    log(f"found {len(nan_idx):,} NaN delimiters")
 
     # compute streamline ranges
-    starts = []
-    ends = []
+    starts, ends = [], []
     prev = 0
     for idx in nan_idx:
         if idx > prev:
@@ -2104,11 +2114,14 @@ def load_tck_parallel(path, n_jobs=-1, apply_affine=True, verbose=False):
     ends   = np.array(ends, dtype=np.int64)
 
     n_sl = len(starts)
+    log(f"detected {n_sl:,} streamlines")
 
     # workers
     if n_jobs == -1:
         n_jobs = cpu_count()
+
     n_jobs = max(1, min(n_jobs, n_sl))
+    log(f"using {n_jobs} workers")
 
     start_chunks = np.array_split(starts, n_jobs)
     end_chunks   = np.array_split(ends, n_jobs)
@@ -2118,17 +2131,23 @@ def load_tck_parallel(path, n_jobs=-1, apply_affine=True, verbose=False):
         for sc, ec in zip(start_chunks, end_chunks)
     ]
 
+    t0 = time.time()
+
     if n_jobs == 1:
         parts = [_load_chunk_tck(args_list[0])]
     else:
         with Pool(n_jobs) as p:
             parts = p.map(_load_chunk_tck, args_list)
 
+    log(f"chunk loading done in {time.time()-t0:.2f}s")
+
     mm.close()
     f.close()
 
     # flatten
     streamlines = [sl for sub in parts for sl in sub]
+
+    log(f"final streamlines: {len(streamlines):,}")
 
     return streamlines, affine
 
@@ -2209,7 +2228,7 @@ def load_tck_serial(path, apply_affine=True, verbose=False):
 
     return streamlines, affine
 
-def load_any_tractogram(path, n_jobs=1, reference_img=None):
+def load_any_tractogram(path, n_jobs=1, reference_img=None, verbose=False):
     ext = os.path.splitext(path)[1].lower()
 
     if n_jobs is None:
@@ -2217,17 +2236,29 @@ def load_any_tractogram(path, n_jobs=1, reference_img=None):
 
     if n_jobs == 1:
         if ext == ".trk":
+            if verbose:
+                print("[tracklib] loading TRK (serial DIPY)", flush=True)
             return load_tractogram(path, reference="same", to_space=Space.RASMM)
+
         elif ext == ".tck":
-            return load_tck_serial(path, apply_affine=True)
+            if verbose:
+                print("[tracklib] loading TCK (serial)", flush=True)
+            return load_tck_serial(path, apply_affine=True, verbose=verbose)
+
         else:
             raise ValueError(f"Unsupported extension: {ext}")
 
     if n_jobs > 1:
         if ext == ".tck":
-            return load_tck_parallel(path, n_jobs=n_jobs, apply_affine=True)
+            if verbose:
+                print(f"[tracklib] loading TCK (parallel, n_jobs={n_jobs})", flush=True)
+            return load_tck_parallel(path, n_jobs=n_jobs, apply_affine=True, verbose=verbose)
+
         elif ext == ".trk":
+            if verbose:
+                print(f"[tracklib] loading TRK (parallel, n_jobs={n_jobs})", flush=True)
             return load_streamlines_parallel(path, n_jobs=n_jobs)
+
         else:
             raise ValueError(f"Unsupported extension: {ext}")
 
@@ -2842,7 +2873,12 @@ def loadTractogram(filename, max_num=None, n_jobs=None, reference_img=None, verb
     log(f"using n_jobs={n_jobs}")
 
     t0 = time.time()
-    tg = load_any_tractogram(filename, n_jobs=n_jobs)
+    tg = load_any_tractogram(
+		    filename,
+		    n_jobs=n_jobs,
+		    reference_img=reference_img,
+		    verbose=verbose,
+		)
     log(f"loader returned type: {type(tg)} in {time.time()-t0:.2f}s")
 
     # ---------------------------------------------------------
