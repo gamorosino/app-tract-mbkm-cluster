@@ -154,13 +154,20 @@ def run_from_config(cfg):
     ensure_dir(out_medoids)
     ensure_dir(out_labels)
     ensure_dir(out_qc)
-
+    
+    print(f"loading tractogram: {track_path}")
+    print(f"using n_jobs={n_jobs}")
+    
     streamlines, affine, header = loadTractogram(
         track_path,
         n_jobs=n_jobs,
         reference_img=reference_path,
     )
+    
     n_streamlines = len(streamlines)
+
+    print(f"loaded {n_streamlines:,} streamlines")
+    
     n_clusters_requested = int(cfg.get("n_clusters", 1))
     n_clusters_final = max(1, min(n_clusters_requested, n_streamlines))
     if n_clusters_final != n_clusters_requested:
@@ -170,12 +177,15 @@ def run_from_config(cfg):
 
     nb_points = cfg.get("nb_points", 20)
     distance = cfg.get("distance", "mdf")
+    
+    print(f"resampling streamlines to {nb_points} points")
+    
     resampled = _resample_streamlines(streamlines, nb_points)
 
     n_prototypes = int(cfg.get("n_prototypes", 64))
     if n_prototypes > n_streamlines:
         n_prototypes = n_streamlines
-
+    print(f"computing embedding ({distance}, {n_prototypes} prototypes) with {n_jobs} workers...")
     t0 = time.time()
     embedding = compute_embedding(
         resampled,
@@ -187,7 +197,9 @@ def run_from_config(cfg):
         verbose=bool(cfg.get("verbose", False)),
     )
     embed_sec = round(time.time() - t0, 2)
+    print(f"embedding done in {embed_sec:.2f}s (shape={embedding.shape})")
 
+    t0 = time.time()
     km = fit_mbkm(
         embedding,
         n_clusters=n_clusters_final,
@@ -198,9 +210,18 @@ def run_from_config(cfg):
         verbose=bool(cfg.get("verbose", False)),
     )
 
+    cluster_sec = time.time() - t0
+    
+    print(f"clustering done in {cluster_sec:.2f}s")
+    
     clusters, medoids = select_medoids_from_embedding(embedding, km.labels_, km.cluster_centers_)
+    
+    print("selecting medoids...")
 
     merged_medoid_path = os.path.join(out_medoids, "track.trk")
+
+    print("saving merged medoids...")
+    
     save_merged_medoids(streamlines, medoids, reference, merged_medoid_path)
 
     if cfg.get("save_individual_medoids", False):
