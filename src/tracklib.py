@@ -79,7 +79,7 @@ from nibabel import load as load_nifti
 import os
 from scipy.interpolate import splprep, splev
 from scipy.spatial import cKDTree
-
+import time
 #try:
 #	from scilpy.tractanalysis.streamlines_metrics import compute_tract_counts_map
 #except:
