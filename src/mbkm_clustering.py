@@ -158,10 +158,13 @@ def run_from_config(cfg):
     print(f"loading tractogram: {track_path}")
     print(f"using n_jobs={n_jobs}")
     
+    verbose = bool(cfg.get("verbose", False))
+
     streamlines, affine, header = loadTractogram(
         track_path,
         n_jobs=n_jobs,
         reference_img=reference_path,
+        verbose=verbose,
     )
     
     n_streamlines = len(streamlines)
