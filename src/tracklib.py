@@ -2795,17 +2795,23 @@ def tck_to_trk_stream(
 ##################################################
 # Streaming + Parallel TCK and TRK
 ##################################################
-
-def loadTractogram(filename, max_num=None, n_jobs=None, reference_img=None):
+def log(msg):
+    if verbose:
+        print(f"[tracklib] {msg}", flush=True)
+		
+def loadTractogram(filename, max_num=None, n_jobs=None, reference_img=None, verbose=False):
     """
-    Load a tractogram and return ONLY:
+    Load a tractogram and return:
         - streamlines : np.ndarray (dtype=object)
         - affine      : np.ndarray (4x4)
-        - header      : dict or None (TRK only or synthetic)
-
-    reference_img:
-        Optional NIfTI used ONLY to recover affine/header for TCK files.
+        - header      : dict or None
     """
+
+    def log(msg):
+        if verbose:
+            print(f"[tracklib] {msg}", flush=True)
+
+    log(f"loading: {filename}")
 
     # ---------------------------------------------------------
     # Lazy TRK metadata recovery (zero-cost)
@@ -2814,6 +2820,7 @@ def loadTractogram(filename, max_num=None, n_jobs=None, reference_img=None):
     trk_affine = None
 
     if filename.lower().endswith(".trk"):
+        log("detected TRK file (lazy header read)")
         lazy_trk = nib.streamlines.load(filename, lazy_load=True)
         trk_header = lazy_trk.header
         trk_affine = nib.streamlines.trk.get_affine_trackvis_to_rasmm(trk_header)
@@ -2832,24 +2839,33 @@ def loadTractogram(filename, max_num=None, n_jobs=None, reference_img=None):
     if n_jobs is None:
         n_jobs = 1
 
+    log(f"using n_jobs={n_jobs}")
+
+    t0 = time.time()
     tg = load_any_tractogram(filename, n_jobs=n_jobs)
+    log(f"loader returned type: {type(tg)} in {time.time()-t0:.2f}s")
 
     # ---------------------------------------------------------
     # CASE A — DIPY loader
     # ---------------------------------------------------------
     if hasattr(tg, "streamlines"):
+        log("detected DIPY StatefulTractogram")
         streamlines = np.array(tg.streamlines, dtype=object)
 
         if trk_affine is not None:
             affine = trk_affine
             header = trk_header
+            log("using TRK header + affine")
+
         else:
             # TCK via DIPY
             if reference_img is not None:
+                log("using reference image for TCK")
                 nii = nib.load(reference_img)
                 affine = nii.affine
                 header = _header_from_reference(nii)
             else:
+                log("WARNING: no reference for TCK, using tg.affine")
                 affine = tg.affine
                 header = None
 
@@ -2857,6 +2873,7 @@ def loadTractogram(filename, max_num=None, n_jobs=None, reference_img=None):
     # CASE B — parallel TRK loader
     # ---------------------------------------------------------
     elif isinstance(tg, tuple) and len(tg) == 4:
+        log("detected parallel TRK loader output")
         streamlines, header, _, _ = tg
         streamlines = np.array(streamlines, dtype=object)
         affine = nib.streamlines.trk.get_affine_trackvis_to_rasmm(header)
@@ -2865,11 +2882,13 @@ def loadTractogram(filename, max_num=None, n_jobs=None, reference_img=None):
     # CASE C — parallel TCK loader
     # ---------------------------------------------------------
     elif isinstance(tg, tuple) and len(tg) == 2:
+        log("detected TCK loader output (serial/parallel)")
         streamlines, affine = tg
         streamlines = np.array(streamlines, dtype=object)
         header = None
 
         if reference_img is not None:
+            log("injecting reference image into TCK header")
             nii = nib.load(reference_img)
             affine = nii.affine
             header = _header_from_reference(nii)
@@ -2877,15 +2896,19 @@ def loadTractogram(filename, max_num=None, n_jobs=None, reference_img=None):
     else:
         raise TypeError(f"Unknown tractogram loader output: {type(tg)}")
 
+    log(f"loaded {len(streamlines):,} streamlines")
+
     # ---------------------------------------------------------
     # Optional subsampling
     # ---------------------------------------------------------
     if max_num is not None and len(streamlines) > max_num:
+        log(f"subsampling from {len(streamlines):,} to {max_num:,}")
         idxs = np.random.choice(len(streamlines), size=max_num, replace=False)
         streamlines = streamlines[idxs]
 
-    return streamlines, affine, header
+    log("done loading tractogram")
 
+    return streamlines, affine, header
 ##################################################
 # get backbone new version
 ##################################################
