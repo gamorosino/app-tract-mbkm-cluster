@@ -134,6 +134,7 @@ def cluster_size_stats(labels, n_clusters):
 from multiprocessing import cpu_count
 
 def run_from_config(cfg):
+    t_global = time.time()
     track_path = cfg["track"]
     reference_path = cfg.get("reference")
 
@@ -164,7 +165,8 @@ def run_from_config(cfg):
         track_path,
         n_jobs=n_jobs,
         reference_img=reference_path,
-        verbose=verbose,
+        verbose=verbose, 
+        max_num=cfg.get("max_num_streamlines"),
     )
     
     n_streamlines = len(streamlines)
@@ -182,8 +184,10 @@ def run_from_config(cfg):
     distance = cfg.get("distance", "mdf")
     
     print(f"resampling streamlines to {nb_points} points")
-    
+    t0 = time.time()
     resampled = _resample_streamlines(streamlines, nb_points)
+    resample_sec = time.time() - t0
+    print(f"resampling done in {resample_sec:.2f}s")
 
     n_prototypes = int(cfg.get("n_prototypes", 64))
     if n_prototypes > n_streamlines:
@@ -197,11 +201,11 @@ def run_from_config(cfg):
         prototype_policy=cfg.get("prototype_policy", "sff"),
         size_limit=int(cfg.get("size_limit", 5_000_000)),
         n_jobs=n_jobs,
-        verbose=bool(cfg.get("verbose", False)),
+        verbose=verbose,
     )
     embed_sec = round(time.time() - t0, 2)
     print(f"embedding done in {embed_sec:.2f}s (shape={embedding.shape})")
-
+    print(f"embedding shape: {embedding.shape}, dtype={embedding.dtype}")
     t0 = time.time()
     km = fit_mbkm(
         embedding,
@@ -210,7 +214,7 @@ def run_from_config(cfg):
         n_init=int(cfg.get("n_init", 10)),
         max_no_improvement=int(cfg.get("max_no_improvement", 5)),
         random_state=int(cfg.get("random_state", 0)),
-        verbose=bool(cfg.get("verbose", False)),
+        verbose=verbose,
     )
 
     cluster_sec = time.time() - t0
@@ -259,5 +263,6 @@ def run_from_config(cfg):
 
     if cfg.get("save_summary", True):
         write_json(os.path.join(out_qc, "summary.json"), summary)
-
+    total_sec = time.time() - t_global
+    print(f"[app] total runtime: {total_sec:.2f}s")
     return summary
