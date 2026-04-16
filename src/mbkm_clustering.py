@@ -18,7 +18,24 @@ from .tracklib import loadTractogram, trk2tck
 from .dissimilarity_common import compute_dissimilarity
 from .io_utils import ensure_dir, write_json
 
-
+import os
+try:
+    import psutil
+    
+    def log_mem(prefix=""):
+        proc = psutil.Process(os.getpid())
+        rss_gb = proc.memory_info().rss / (1024 ** 3)
+        vm = psutil.virtual_memory()
+        avail_gb = vm.available / (1024 ** 3)
+        total_gb = vm.total / (1024 ** 3)
+        print(f"[mem] {prefix} rss={rss_gb:.2f} GB | avail={avail_gb:.2f} GB / total={total_gb:.2f} GB", flush=True)
+except:
+    import resource    
+    def log_mem(prefix=""):
+        rss_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        rss_gb = rss_kb / (1024 ** 2)
+        print(f"[mem] {prefix} maxrss={rss_gb:.2f} GB", flush=True)
+    
 def _padnum(num, n=4):
     return str(num).zfill(n)
 
@@ -31,7 +48,35 @@ def _resolve_distance(distance_name: str):
         return bundles_distances_mam
     raise ValueError(f"Unsupported distance: {distance_name}")
 
+from multiprocessing import Pool
 
+def _resample_chunk(args):
+    chunk, nb_points = args
+
+    seq = nib.streamlines.ArraySequence()
+    for sl in chunk:
+        seq.append(np.asarray(sl, dtype=np.float32))
+
+    if nb_points is None:
+        return np.array([np.asarray(sl, dtype=np.float32) for sl in seq], dtype=object)
+
+    resampled = set_number_of_points(seq, nb_points)
+    return np.array([np.asarray(sl, dtype=np.float32) for sl in resampled], dtype=object)
+
+
+def resample_streamlines_parallel(streamlines, nb_points, n_jobs=1, chunk_size=50000):
+    chunks = [
+        (streamlines[i:i+chunk_size], nb_points)
+        for i in range(0, len(streamlines), chunk_size)
+    ]
+
+    if n_jobs == 1:
+        results = [_resample_chunk(c) for c in chunks]
+    else:
+        with Pool(n_jobs) as p:
+            results = p.map(_resample_chunk, chunks)
+
+    return np.concatenate(results, axis=0)
 
 def _resample_streamlines(streamlines, nb_points: int):
     seq = nib.streamlines.ArraySequence()
@@ -158,7 +203,7 @@ def run_from_config(cfg):
     
     print(f"loading tractogram: {track_path}")
     print(f"using n_jobs={n_jobs}")
-    
+    log_mem("before tractogram loading")
     verbose = bool(cfg.get("verbose", True))
 
     streamlines, affine, header = loadTractogram(
@@ -169,6 +214,7 @@ def run_from_config(cfg):
         max_num=cfg.get("max_num_streamlines"),
     )
     
+    log_mem("after tractogram loading")
     n_streamlines = len(streamlines)
 
     print(f"loaded {n_streamlines:,} streamlines")
@@ -185,9 +231,17 @@ def run_from_config(cfg):
     
     print(f"resampling streamlines to {nb_points} points")
     t0 = time.time()
-    resampled = _resample_streamlines(streamlines, nb_points)
+    if n_jobs == 1:
+        resampled = _resample_streamlines(streamlines, nb_points)
+    else:
+        chunk_size = 20000
+        resampled = resample_streamlines_parallel(streamlines, nb_points, n_jobs=n_jobs)
     resample_sec = time.time() - t0
+    log_mem("after resample")
     print(f"resampling done in {resample_sec:.2f}s")
+    log_mem("after deleting original streamlines")
+    log_mem("before embedding")
+    t0 = time.time()
 
     n_prototypes = int(cfg.get("n_prototypes", 64))
     if n_prototypes > n_streamlines:
@@ -203,8 +257,11 @@ def run_from_config(cfg):
         n_jobs=n_jobs,
         verbose=verbose,
     )
-    embed_sec = round(time.time() - t0, 2)
-    print(f"embedding done in {embed_sec:.2f}s (shape={embedding.shape})")
+    embed_sec = time.time() - t0
+    log_mem("after embedding")
+    print(f"embedding done in {embed_sec:.2f}s")
+    
+    log_mem("before clustering")
     print(f"embedding shape: {embedding.shape}, dtype={embedding.dtype}")
     t0 = time.time()
     km = fit_mbkm(
@@ -219,6 +276,7 @@ def run_from_config(cfg):
 
     cluster_sec = time.time() - t0
     
+    log_mem("after clustering")
     print(f"clustering done in {cluster_sec:.2f}s")
     
     clusters, medoids = select_medoids_from_embedding(embedding, km.labels_, km.cluster_centers_)
