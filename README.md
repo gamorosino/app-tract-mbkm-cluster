@@ -1,4 +1,15 @@
-# Tractogram Clasturing using dissimilarity embedding and MiniBatch K-Means (app-tract-mbkm-cluster)
+<h1 align="center">Tractogram clustering</h1>
+
+<p align="center">
+  Clusters a large tractogram by embedding streamlines with an orientation-invariant dissimilarity to prototype fibres and running MiniBatch K-Means, outputting one medoid streamline per cluster.
+</p>
+
+<p align="center">
+  <a href="https://github.com/brainlife/abcd-spec"><img src="https://img.shields.io/badge/ABCD_Spec-v1.1-green.svg" alt="ABCD Spec v1.1"></a>
+  <a href="https://doi.org/10.25663/brainlife.app.916"><img src="https://img.shields.io/badge/Brainlife-brainlife.app.916-blue.svg" alt="Run on brainlife.io"></a>
+</p>
+
+## At a glance
 
 <!-- brainlife-app:begin (generated from the App manifest; edit the manifest, not this block) -->
 
@@ -8,27 +19,27 @@ Resamples the streamlines, embeds each one as its MDF distances to a set of prot
 
 | | |
 |---|---|
-| 📥 **Inputs** | `neuro/track/tck` · `neuro/anat/t1w` |
-| 📤 **Outputs** | `neuro/track/tck` |
-| 🐳 **Container** | `gamorosino/tract_align:v1.0` |
-| ⚙️ **Resources** | 1 CPUs · 62 GB memory · 5 h walltime |
-| 🔗 **Run it** | [doi.org/10.25663/brainlife.app.916](https://doi.org/10.25663/brainlife.app.916) |
+| **Inputs** | `neuro/track/tck` · `neuro/anat/t1w` |
+| **Outputs** | `neuro/track/tck` |
+| **Container** | `gamorosino/tract_align:v1.0` |
+| **Resources** | 1 CPUs · 62 GB memory · 5 h walltime |
+| **Run it** | [doi.org/10.25663/brainlife.app.916](https://doi.org/10.25663/brainlife.app.916) |
 
-#### 📥 Inputs
+#### Inputs
 
 | Input | Datatype | Required | Description |
 |---|---|---|---|
 | `track` | `neuro/track/tck` | yes | Whole-brain tractogram in .tck format. |
 | `t1` | `neuro/anat/t1w` | yes | Reference anatomical image defining the tractogram's space, used for format conversion and headers. |
 
-#### 📤 Outputs
+#### Outputs
 
 | Output | Datatype | Description |
 |---|---|---|
 | `out_medoids` | `neuro/track/tck` | Tractogram with one medoid (representative real streamline) per cluster. |
 
 <details>
-<summary><b>⚙️ Parameters</b> (3)</summary>
+<summary><b>Parameters</b> (3)</summary>
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
@@ -38,25 +49,32 @@ Resamples the streamlines, embeds each one as its MDF distances to a set of prot
 
 </details>
 
-📚 **References used by this App:**
-- Olivetti E, Nguyen TB, Garyfallidis E. The approximation of the dissimilarity projection. PRNI (2012). [doi:10.1109/prni.2012.13](https://doi.org/10.1109/prni.2012.13)
-- Olivetti E, Nguyen TB, Garyfallidis E, Agarwal N, Avesani P. Fast clustering for interactive tractography segmentation. PRNI (2013). [doi:10.1109/prni.2013.20](https://doi.org/10.1109/prni.2013.20)
-- Garyfallidis E, Brett M, Amirbekian B, et al. DIPY, a library for the analysis of diffusion MRI data. Front Neuroinform 8:8 (2014). [doi:10.3389/fninf.2014.00008](https://doi.org/10.3389/fninf.2014.00008)
-- Sculley D. Web-scale k-means clustering. WWW (2010).
-
 <!-- brainlife-app:end -->
 
-Orientation-invariant streamline dissimilarity embedding, MiniBatch K-Means clustering, and medoid extraction
+## Running the App
 
-## Overview
+### On brainlife.io
 
-This app performs large-scale clustering of tractography streamlines using a dissimilarity representation and MiniBatch K-Means (MBKM), followed by extraction of representative streamlines (medoids).
+Open the App at [doi.org/10.25663/brainlife.app.916](https://doi.org/10.25663/brainlife.app.916), choose `neuro/track/tck`, `neuro/anat/t1w` from your project, set the parameters and press **Execute**. The results are saved to your project as `neuro/track/tck`.
 
-Each streamline is embedded into a vector space defined by its distances to a set of prototype fibers, using an orientation-invariant metric. Clustering is then performed in this embedding space, and a representative streamline is selected per cluster.
+### Locally
 
-This approach follows the dissimilarity projection framework introduced by Emanuele Olivetti and colleagues, enabling scalable clustering of very large tractograms while preserving anatomical validity (Olivetti et al., 2012, 2013).
+You need [Singularity/Apptainer](https://apptainer.org/) (the App runs in `gamorosino/tract_align:v1.0`), [`jq`](https://jqlang.github.io/jq/).
 
----
+1. Clone this repository.
+2. Create `config.json` with the paths to your inputs and the parameters:
+
+   ```json
+   {
+       "track": "/path/to/track/track",
+       "reference": "/path/to/t1/reference",
+       "n_clusters": 1000,
+       "n_jobs": -1,
+       "max_num_streamlines": "<number>"
+   }
+   ```
+
+3. Run `./main`.
 
 ## Key Features
 
@@ -70,14 +88,8 @@ This approach follows the dissimilarity projection framework introduced by Emanu
 * Built on tools from DIPY (Garyfallidis et al., 2014)
 
 ---
-## Author
 
-Gabriele amorosino (g.amorosino@gmail.com)
-
----
-## Method Summary
-
-### 1. Streamline Embedding
+## 1. Streamline Embedding
 
 Each streamline ( $s_i$ ) is embedded as:
 ```math
@@ -97,7 +109,7 @@ Prototypes are selected using subset farthest-first traversal.
 
 ---
 
-### 2. Clustering
+## 2. Clustering
 
 MiniBatch K-Means is applied to the embedded representation:
 
@@ -109,7 +121,7 @@ This follows the web-scale clustering paradigm introduced by David Sculley (2010
 
 ---
 
-### 3. Medoid Extraction
+## 3. Medoid Extraction
 
 For each cluster:
 
@@ -117,27 +129,6 @@ For each cluster:
 * Optional refinement: approximate true medoid using subset evaluation
 
 Unlike centroids, medoids correspond to real streamlines and preserve anatomical plausibility.
-
----
-
-## Inputs
-
-| Name                 | Type                            | Description                             |
-| -------------------- | ------------------------------- | --------------------------------------- |
-| tractogram           | `track/tck` or `track/trk`      | Input streamlines                       |
-| reference (optional) | `neuro/dwi` or `neuro/anat/t1w` | Required for `.tck` → `.trk` conversion |
-
----
-
-## Outputs
-
-| Name         | Type                        | Description                                |
-| ------------ | --------------------------- | ------------------------------------------ |
-| medoids      | `track/trk` or `track/tck`  | Representative streamlines (1 per cluster) |
-| labels       | `raw`                       | Streamline → cluster assignments           |
-| summary      | `raw`                       | JSON with clustering statistics            |
-| qc           | `generic/images` (optional) | QC plots (cluster sizes, etc.)             |
-| product.json | metadata                    | Brainlife visualization + logs             |
 
 ---
 
@@ -161,9 +152,7 @@ Example `config.json`:
 
 ---
 
-## Usage
-
-### Local execution
+## Local execution
 
 ```bash
 singularity exec -e docker://gamorosino/tract_align:latest \
@@ -173,28 +162,21 @@ singularity exec -e docker://gamorosino/tract_align:latest \
 
 ---
 
-## References
+## Citing
 
-* Olivetti, E., Nguyen, T. B., & Garyfallidis, E. (2012).
-  *The approximation of the dissimilarity projection.*
-  2012 2nd International Workshop on Pattern Recognition in NeuroImaging (PRNI).
-  [https://doi.org/10.1109/prni.2012.13](https://doi.org/10.1109/prni.2012.13)
+If you use this App, please cite it, the software it builds on and brainlife.io:
 
-* Olivetti, E., Nguyen, T. B., Garyfallidis, E., Agarwal, N., & Avesani, P. (2013).
-  *Fast clustering for interactive tractography segmentation.*
-  2013 International Workshop on Pattern Recognition in Neuroimaging (PRNI).
-  [https://doi.org/10.1109/prni.2013.20](https://doi.org/10.1109/prni.2013.20)
+- Tractogram clustering. brainlife.io App. [doi:10.25663/brainlife.app.916](https://doi.org/10.25663/brainlife.app.916)
+- Olivetti E, Nguyen TB, Garyfallidis E. The approximation of the dissimilarity projection. PRNI (2012). [doi:10.1109/prni.2012.13](https://doi.org/10.1109/prni.2012.13)
+- Olivetti E, Nguyen TB, Garyfallidis E, Agarwal N, Avesani P. Fast clustering for interactive tractography segmentation. PRNI (2013). [doi:10.1109/prni.2013.20](https://doi.org/10.1109/prni.2013.20)
+- Garyfallidis E, Brett M, Amirbekian B, et al. DIPY, a library for the analysis of diffusion MRI data. Front Neuroinform 8:8 (2014). [doi:10.3389/fninf.2014.00008](https://doi.org/10.3389/fninf.2014.00008)
+- Sculley D. Web-scale k-means clustering. WWW (2010).
+- Sculley, D. (2010). *Web-scale k-means clustering.* ---
+- Hayashi S, Caron BA, Heinsfeld AS, et al. brainlife.io: a decentralized and open-source cloud platform to support neuroscience research. *Nature Methods* 21:809–813 (2024). [doi:10.1038/s41592-024-02237-2](https://doi.org/10.1038/s41592-024-02237-2)
+- Avesani P, McPherson B, Hayashi S, et al. The open diffusion data derivatives, brain data upcycling via integrated publishing of derivatives and reproducible open cloud services. *Scientific Data* 6:69 (2019). [doi:10.1038/s41597-019-0073-y](https://doi.org/10.1038/s41597-019-0073-y)
 
-* Garyfallidis, E., Brett, M., Amirbekian, B., Rokem, A., van der Walt, S., Descoteaux, M., Nimmo-Smith, I., & DIPY Contributors. (2014).
-  *DIPY, a library for the analysis of diffusion MRI data.*
-  Frontiers in Neuroinformatics, 8, 8.
-  [https://doi.org/10.3389/fninf.2014.00008](https://doi.org/10.3389/fninf.2014.00008)
+## Authors
 
-* Sculley, D. (2010).
-  *Web-scale k-means clustering.*
+Gabriele amorosino
 
 ---
-
-## License
-
-license (BSD-3-Clause)
